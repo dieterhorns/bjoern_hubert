@@ -216,6 +216,20 @@ c0  =map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][0], psfind)
 c1  =map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][1], psfind)
 beta=map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][2], psfind)
 
+
+prob_pt = map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
+                  drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist)
+
+x=np.arange(0.4,0.60,0.005)
+likeli = map(lambda f: -np.sum(np.log(prob_pt*np.ones(drad.size)*f)+np.log(np.ones(drad.size)*(1.-f))),x)
+#    prob_p = prob_pt * np.ones(drad.size)*frac_pt
+#    prob_f = np.ones(drad.size)*(1.0-frac_pt)
+#    likeli  = -np.sum(np.log(prob_p)+np.log(prob_f))
+plt.plot(x,likeli)
+plt.show()
+
+
+
 # corresponds to the same photon in Bjoern's test photon case 
 # i=2
 # print Elist[i],cosTlist[i],ebin[i],tbin[i],psfclass[i],psfind[i]
