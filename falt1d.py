@@ -4,8 +4,7 @@ import pyfits
 from scipy.integrate import simps
 from matplotlib.ticker import NullFormatter, MaxNLocator
 
-
-
+# added a bit of documentation
 
 def k(tdev,sig,gam,E,c0,c1,beta):			#king, tdev abweichung vom zentrum in rad
 	X=tdev/np.sqrt((c0*(E/100)**beta)**2+c1**2)
