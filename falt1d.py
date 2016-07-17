@@ -8,16 +8,16 @@ from matplotlib.ticker import NullFormatter, MaxNLocator
 # THis should only appear in DH branch
 
 def k(tdev,sig,gam,E,c0,c1,beta):			#king, tdev abweichung vom zentrum in rad
-	X=tdev/np.sqrt((c0*(E/100)**beta)**2+c1**2)
-	res=1/(2*pi*sig**2) *(1-1/gam) *(1+1/(2*gam)*(X/sig)**2)**(-gam)
+	X=tdev/np.sqrt((c0*(E/100.)**beta)**2.+c1**2.)
+	res=1./(2.*pi*sig**2.) *(1.-1./gam) *(1.+1./(2.*gam)*(X/sig)**2.)**(-gam)
 	return res
 
 def f(N,sigt,sigc):					#norm
-	res=1/(1+N*(sigt/sigc)**2)
+	res=1./(1.+N*(sigt/sigc)**2.)
 	return res
 
 def p(tdev,sigc,gamc,sigt,gamt,N,E,c0,c1,beta):		#psf 	x=dRA, y=dDEC	umrechnung in rad noetig
-	res=f(N,sigt,sigc)*k(tdev,sigc,gamc,E,c0,c1,beta)+(1-f(N,sigt,sigc))*k(tdev,sigt,gamt,E,c0,c1,beta)
+	res=f(N,sigt,sigc)*k(tdev,sigc,gamc,E,c0,c1,beta)+(1.-f(N,sigt,sigc))*k(tdev,sigt,gamt,E,c0,c1,beta)
 	return res
 
 
@@ -66,6 +66,7 @@ r2d=180./pi
 
 RAc=166.114			#position des zentrums
 DECc=38.2088
+#DECc=37.2088
 
 
 cosTlist=np.cos(np.array(dat[1].data.field('THETA   '))*pi/180)	#liste der photonen neigungswinkel zum detektor (fuer thetabin) in cos(theta)
@@ -82,7 +83,7 @@ Ralist = (Ralist-RAc)/np.cos(DECc*pi/180.)
 Declist= Declist - DECc
 
 # maximum cutout angle
-maxa = 0.5
+maxa = 1.0
 
 cosTlist = cosTlist[drad<(d2r*maxa)]
 Elist  = Elist[drad<(d2r*maxa)]
@@ -217,15 +218,32 @@ c1  =map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][1], psfind)
 beta=map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][2], psfind)
 
 
-prob_pt = map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
-                  drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist)
+npred=drad.size
+prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
+                  drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
+# normalize the sum  !! using a fudge factor 
+sig = prob_pt /np.sum(prob_pt)*5.
+b   = np.ones(npred)/npred
+plt.plot(drad*180./pi,np.log(sig),'.')
+plt.plot(drad*180./pi,np.log(b),'g.')
+#plt.hist(drad*180./pi,bins=100,weights=np.log(sig))
+#plt.hist(drad*180./pi,bins=100,weights=np.log(b),alpha=.3)
+plt.show()
 
-x=np.arange(0.4,0.60,0.005)
-likeli = map(lambda f: -np.sum(np.log(prob_pt*np.ones(drad.size)*f)+np.log(np.ones(drad.size)*(1.-f))),x)
-#    prob_p = prob_pt * np.ones(drad.size)*frac_pt
-#    prob_f = np.ones(drad.size)*(1.0-frac_pt)
-#    likeli  = -np.sum(np.log(prob_p)+np.log(prob_f))
-plt.plot(x,likeli)
+
+x=np.arange(0.02,1.00,0.02)
+# diagnostic plot - 
+# log(mu) for signal as a function of fraction
+plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(sig*f)),x)),'r')
+# log(mu) for background as a function of 1-fraction
+plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(b*(1.-f))),x)),'g')
+
+# calculate the likelihood - vary the only free parameter - fraction of background
+# mu = signal * f + (1-f)*background
+# 
+likeli0 = np.asarray(map(lambda f: np.sum( np.log(sig*f + b*(1.-f)) ),x))
+
+plt.plot(x,likeli0)
 plt.show()
 
 
