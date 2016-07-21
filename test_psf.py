@@ -41,9 +41,12 @@ c1  =map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][1], psfind)
 beta=map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][2], psfind)
 
 drad = np.linspace(0.,pi,1000)
+resu=[]
 for i in np.arange(0,elist.size):
-    prad=twopi*np.sin(drad)*(np.asarray(map(lambda x: p(x,sigc[i],gamc[i],sigt[i],gamt[i],N[i],elist[i],c0[i],c1[i],beta[i]),drad)))
-    resu = simps(prad,drad)
-    print resu
-    plt.plot(drad,prad)
-    plt.show()
+#    prad=twopi*np.sin(drad)*(np.asarray(map(lambda x: p(x,sigc[i],gamc[i],sigt[i],gamt[i],N[i],elist[i],c0[i],c1[i],beta[i]),drad)))
+    prad=(np.asarray(map(lambda x: p(x,sigc[i],gamc[i],sigt[i],gamt[i],N[i],elist[i],c0[i],c1[i],beta[i]),drad)))
+    resu.append(simps(prad,drad))
+
+
+plt.plot(np.log10(elist),np.log10(np.asarray(resu)*180./pi))
+plt.show()
