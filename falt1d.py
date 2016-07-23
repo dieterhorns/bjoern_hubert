@@ -12,6 +12,10 @@ def k(tdev,sig,gam,E,c0,c1,beta):			#king, tdev abweichung vom zentrum in rad
 	res=1./(2.*pi*sig**2.) *(1.-1./gam) *(1.+1./(2.*gam)*(X/sig)**2.)**(-gam)
 	return res
 
+def Sp(E,c0,c1,beta):
+    return np.sqrt((c0*(E/100.)**beta)**2.+c1**2.)
+
+
 def f(N,sigt,sigc):					#norm
 	res=1./(1.+N*(sigt/sigc)**2.)
 	return res
@@ -221,8 +225,9 @@ beta=map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][2], psfind)
 npred=drad.size
 prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
                   drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
+sp = np.asarray(map(lambda ener,c_0,c_1,b: Sp(ener,c_0,c_1,b),Elist,c0,c1,beta))
 # normalize the sum  !! using a fudge factor 
-sig = prob_pt /np.sum(prob_pt)*5.
+sig = prob_pt /np.sum(prob_pt)/sp
 b   = np.ones(npred)/npred
 plt.plot(drad*180./pi,np.log(sig),'.')
 plt.plot(drad*180./pi,np.log(b),'g.')
@@ -231,12 +236,12 @@ plt.plot(drad*180./pi,np.log(b),'g.')
 plt.show()
 
 
-x=np.arange(0.02,1.00,0.02)
+x=np.arange(0.80,1.00,0.001)
 # diagnostic plot - 
 # log(mu) for signal as a function of fraction
-plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(sig*f)),x)),'r')
+#plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(sig*f)),x)),'r')
 # log(mu) for background as a function of 1-fraction
-plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(b*(1.-f))),x)),'g')
+#plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(b*(1.-f))),x)),'g')
 
 # calculate the likelihood - vary the only free parameter - fraction of background
 # mu = signal * f + (1-f)*background
