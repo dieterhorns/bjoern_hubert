@@ -3,9 +3,10 @@ import numpy as np
 import pyfits
 from scipy.integrate import simps
 from matplotlib.ticker import NullFormatter, MaxNLocator
+import scipy.optimize as opt
 
 # added a bit of documentation
-# THis should only appear in DH branch
+# This should only appear in DH branch
 
 def k(tdev,sig,gam,E,c0,c1,beta):			#king, tdev abweichung vom zentrum in rad
 	X=tdev/np.sqrt((c0*(E/100.)**beta)**2.+c1**2.)
@@ -38,6 +39,7 @@ def ellipse(ra,rb,ang,x0,y0,Nb=100):
     Y=radm*np.cos(the)*si+co*radn*np.sin(the)+ypos
     return X,Y
 
+
 def dangle(ra1,ra2,dec1,dec2): # each given in degrees
     dec1= 90.-dec1 # go from long to sphere
     dec2= 90.-dec2 # go from long to sphere
@@ -59,18 +61,22 @@ def dangle(ra1,ra2,dec1,dec2): # each given in degrees
     resu[resu<-1.0]= -1.0
     return(np.arccos(resu))
 
+
+# read in the data
 psf_fits=pyfits.open('./data/psf_P8R2_SOURCE_V6_PSF.fits')
 dat=pyfits.open('./data/source_psf2_3.fits')	
+
 #cut on evclass -> nur source (evclass=128)--- cut on evtype -> nur psf2/3 (evtype=16+32=48)
 
+# define some constants
 twopi=np.arctan(1.)*8.
 pi=twopi/2.
 d2r=pi/180.
 r2d=180./pi
 
+# position of source
 RAc=166.114			#position des zentrums
 DECc=38.2088
-#DECc=37.2088
 
 
 cosTlist=np.cos(np.array(dat[1].data.field('THETA   '))*pi/180)	#liste der photonen neigungswinkel zum detektor (fuer thetabin) in cos(theta)
@@ -87,7 +93,7 @@ Ralist = (Ralist-RAc)/np.cos(DECc*pi/180.)
 Declist= Declist - DECc
 
 # maximum cutout angle
-maxa = 1.0
+maxa = 0.5
 
 # adding bootstrapped background
 bcosTlist = cosTlist[drad>(d2r*maxa)]
@@ -159,7 +165,7 @@ drad = drad[drad<(d2r*maxa)]
 evtype = evtype[drad<(d2r*maxa)]
 
 
-bck=1000
+bck=0
 evtype  = np.append(evtype,bevtype[:bck])
 Declist = np.append(Declist,bDeclist[:bck])
 Ralist  = np.append(Ralist, bRalist[:bck])
@@ -302,7 +308,8 @@ prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc
 sp = np.asarray(map(lambda ener,c_0,c_1,b: Sp(ener,c_0,c_1,b),Elist,c0,c1,beta))
 # normalize the sum  
 print np.sum(prob_pt)
-sig = prob_pt/npred/sp/twopi
+# normalized pdf to the full solid angle and differential in "x" -> d\theta/sp
+sig = prob_pt/npred/sp/2./twopi
 b   = np.ones(npred)/npred
 plt.plot(drad*180./pi,np.log(sig),'.')
 plt.plot(drad*180./pi,np.log(b),'g.')
@@ -321,19 +328,21 @@ x=np.arange(0.30,1.00,0.01)
 # calculate the likelihood - vary the only free parameter - fraction of background
 # mu = signal * f + (1-f)*background
 # 
+
+def neglikelihood(x):
+    x=max(1e-30,min(1.-1e-8,x))
+    res = -1. * np.sum(np.log(sig*x + b*(1.-x)))
+    print x,res
+    return(res)
+
+
+likeli  = lambda f: -1.*np.sum( np.log(sig*f + b*(1.-f)))
 likeli0 = np.asarray(map(lambda f: np.sum( np.log(sig*f + b*(1.-f)) ),x))
+print opt.minimize(neglikelihood,0.80,method='Nelder-Mead',options={'disp':True})
+print neglikelihood(0.83)
+print likeli(0.83)
+# maximize likelihood
 
 plt.plot(x,likeli0)
 plt.show()
-
-
-
-# corresponds to the same photon in Bjoern's test photon case 
-# i=2
-# print Elist[i],cosTlist[i],ebin[i],tbin[i],psfclass[i],psfind[i]
-# print sigc[i],gamc[i],sigt[i],gamt[i],N[i],c0[i],c1[i],beta[i]
-
-
-
-
 
