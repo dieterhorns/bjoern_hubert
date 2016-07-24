@@ -89,12 +89,86 @@ Declist= Declist - DECc
 # maximum cutout angle
 maxa = 1.0
 
+# adding bootstrapped background
+bcosTlist = cosTlist[drad>(d2r*maxa)]
+bElist    = Elist[drad>(d2r*maxa)]
+bevtype   = evtype[drad>(d2r*maxa)]
+bRalist   = Ralist[drad>(d2r*maxa)]
+bDeclist  = Declist[drad>(d2r*maxa)]
+#shuffling separation angle and phase
+# uniform in costheta 
+bdradcos     = np.random.uniform(np.cos(maxa*d2r),1,bElist.size)
+bdrad        = np.arccos(bdradcos)
+bdradsin     = np.sqrt(1.-bdradcos*bdradcos)
+bphase    = np.random.rand(bElist.size)*twopi
+# transforming 
+# u,v,w -> u',v',w' 
+u= np.cos(bphase)*bdradsin
+v= np.sin(bphase)*bdradsin
+w= bdradcos
+
+
+
+th = pi/2.-DECc*d2r
+ph = RAc * d2r
+
+cph = np.cos(ph)
+sph = np.sin(ph)
+cth = np.cos(th)
+sth = np.sin(th)
+
+rotz  = np.matrix  ([ [cph,  -sph ,  0. ], 
+                      [sph,   cph ,  0. ],
+                      [ 0.,   0.  ,  1. ] ])
+
+roty = np.matrix  ([ [cth,   0.  , sth ],
+                      [0. ,   1.  , 0.  ],
+                      [-sth,   0.  , cth ] ])
+
+
+
+# combined rotation around y and then around z
+rot = np.dot(rotz,roty)
+
+# rotate all vectors
+tt = np.asarray(map(lambda U,V,W: np.dot(rot,np.asarray([U,V,W])),u,v,w))
+# extract the angles
+up=tt[:,0,0]
+vp=tt[:,0,1]
+wp=tt[:,0,2]
+omwp = np.sqrt(1.-wp*wp)
+
+phip  = np.arctan2(vp/omwp,up/omwp)*r2d
+thp   = np.arcsin(wp)*r2d              # declination
+
+#plt.plot(phip,thp,'g.')
+#plt.show()
+
+
+
+
+
+
+
+
 cosTlist = cosTlist[drad<(d2r*maxa)]
 Elist  = Elist[drad<(d2r*maxa)]
 Ralist = Ralist[drad<(d2r*maxa)]
 Declist = Declist[drad<(d2r*maxa)]
 drad = drad[drad<(d2r*maxa)]
 evtype = evtype[drad<(d2r*maxa)]
+
+
+bck=1000
+evtype  = np.append(evtype,bevtype[:bck])
+Declist = np.append(Declist,bDeclist[:bck])
+Ralist  = np.append(Ralist, bRalist[:bck])
+Elist   = np.append(Elist,bElist[:bck])
+cosTlist= np.append(cosTlist,bcosTlist[:bck])
+drad    = np.append(drad,bdrad[:bck])
+
+
+
 
 print str(drad.size)+' Photons within '+str(maxa)+' degrees'
 
@@ -226,8 +300,9 @@ npred=drad.size
 prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
                   drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
 sp = np.asarray(map(lambda ener,c_0,c_1,b: Sp(ener,c_0,c_1,b),Elist,c0,c1,beta))
-# normalize the sum  !! using a fudge factor 
-sig = prob_pt /np.sum(prob_pt)/sp
+# normalize the sum  
+print np.sum(prob_pt)
+sig = prob_pt/npred/sp/twopi
 b   = np.ones(npred)/npred
 plt.plot(drad*180./pi,np.log(sig),'.')
 plt.plot(drad*180./pi,np.log(b),'g.')
@@ -236,7 +311,7 @@ plt.plot(drad*180./pi,np.log(b),'g.')
 plt.show()
 
 
-x=np.arange(0.80,1.00,0.001)
+x=np.arange(0.30,1.00,0.01)
 # diagnostic plot - 
 # log(mu) for signal as a function of fraction
 #plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(sig*f)),x)),'r')
