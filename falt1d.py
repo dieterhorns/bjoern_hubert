@@ -59,7 +59,7 @@ def dangle(ra1,ra2,dec1,dec2): # each given in degrees
     resu = cr1*sd1*cr2*sd2 + sr1*sd1*sr2*sd2 + cd1*cd2
     resu[resu>1.0] = 1.0
     resu[resu<-1.0]= -1.0
-    return(np.arccos(resu))
+    return(np.arccos(resu)) # in radiant
 
 
 # read in the data
@@ -76,7 +76,8 @@ r2d=180./pi
 
 # position of source
 RAc=166.114			#position des zentrums
-DECc=38.2088
+#DECc=38.2088
+DECc=38.1088
 
 
 cosTlist=np.cos(np.array(dat[1].data.field('THETA   '))*pi/180)	#liste der photonen neigungswinkel zum detektor (fuer thetabin) in cos(theta)
@@ -86,14 +87,15 @@ Declist= np.array(dat[1].data.field('DEC'))
 evtype = np.array(dat[1].data.field('EVENT_TYPE')[:,26])
 
 drad = dangle(RAc*np.ones(Ralist.size),Ralist,DECc*np.ones(Declist.size),Declist)
+print drad
 
 
 # transformation:
-Ralist = (Ralist-RAc)/np.cos(DECc*pi/180.)
-Declist= Declist - DECc
+cRalist = (Ralist-RAc)/np.cos(DECc*pi/180.)
+cDeclist= Declist - DECc
 
 # maximum cutout angle
-maxa = 0.5
+maxa = 1.0
 
 # adding bootstrapped background
 bcosTlist = cosTlist[drad>(d2r*maxa)]
@@ -165,7 +167,7 @@ drad = drad[drad<(d2r*maxa)]
 evtype = evtype[drad<(d2r*maxa)]
 
 
-bck=0
+bck=1000
 evtype  = np.append(evtype,bevtype[:bck])
 Declist = np.append(Declist,bDeclist[:bck])
 Ralist  = np.append(Ralist, bRalist[:bck])
@@ -178,8 +180,11 @@ drad    = np.append(drad,bdrad[:bck])
 
 print str(drad.size)+' Photons within '+str(maxa)+' degrees'
 
-xlims=[min(Ralist),max(Ralist)]
-ylims=[min(Declist),max(Declist)]
+cRalist =cRalist[drad<(d2r*maxa)]
+cDeclist=cDeclist[drad<(d2r*maxa)]
+
+xlims=[min(cRalist),max(cRalist)]
+ylims=[min(cDeclist),max(cDeclist)]
 
 left,width=0.12,0.55
 bottom,height=0.12,0.55
@@ -217,7 +222,7 @@ ycenter = (ybins[0:-1]+ybins[1:])/2.0
 aspectratio = 1.0*(xmax - 0)/(1.0*ymax - 0)
 
 
-H, xedges,yedges = np.histogram2d(Declist,Ralist,bins=(ybins,xbins))
+H, xedges,yedges = np.histogram2d(cDeclist,cRalist,bins=(ybins,xbins))
 X = xcenter
 Y = ycenter
 Z = H
@@ -225,10 +230,10 @@ Z = H
 cax = (axSky.imshow(H, extent=[xmin,xmax,ymin,ymax],
            interpolation='nearest', origin='lower',aspect=aspectratio))
 
-xcenter = np.mean(Ralist)
-ycenter = np.mean(Declist)
-rx = np.std(Ralist)
-ry = np.std(Declist)
+xcenter = np.mean(cRalist)
+ycenter = np.mean(cDeclist)
+rx = np.std(cRalist)
+ry = np.std(cDeclist)
 
 ang=0
 X,Y=ellipse(rx,ry,ang,xcenter,ycenter)
@@ -259,12 +264,12 @@ xbins = np.arange(xmin, xmax, (xmax-xmin)/nbins)
 ybins = np.arange(ymin, ymax, (ymax-ymin)/nbins)
  
 #Plot the histograms
-axHistx.hist(Ralist, bins=xbins, color = 'blue')
-axHisty.hist(Declist, bins=ybins, orientation='horizontal', color = 'red')
+axHistx.hist(cRalist, bins=xbins, color = 'blue')
+axHisty.hist(cDeclist, bins=ybins, orientation='horizontal', color = 'red')
  
 #Set up the histogram limits
-axHistx.set_xlim( min(Ralist), max(Ralist) )
-axHisty.set_ylim( min(Declist), max(Declist) )
+axHistx.set_xlim( min(cRalist), max(cRalist) )
+axHisty.set_ylim( min(cDeclist), max(cDeclist) )
  
 #Make the tickmarks pretty
 ticklabels = axHistx.get_yticklabels()
@@ -303,46 +308,37 @@ beta=map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][2], psfind)
 
 
 npred=drad.size
+sp = np.asarray(map(lambda ener,c_0,c_1,b: Sp(ener,c_0,c_1,b),Elist,c0,c1,beta))
+sa = twopi * (1. - np.cos(maxa * d2r))
+
 prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
                   drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
-sp = np.asarray(map(lambda ener,c_0,c_1,b: Sp(ener,c_0,c_1,b),Elist,c0,c1,beta))
+
+def calc_likeli(x):
+    ra_src=x[0]
+    dec_src=x[1]
+#    print 'RA: '+str(ra_src)+' DEC: '+str(dec_src)
+#    print 'RAp: '+str(Ralist[0])+' DECp: '+str(Declist[0])
+    f=x[2]
+#    drad = dangle(ra_src*np.ones(Ralist.size),Ralist,dec_src*np.ones(Declist.size),Declist)
+#    print drad
+#    prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
+#                  drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
 # normalize the sum  
-print np.sum(prob_pt)
 # normalized pdf to the full solid angle and differential in "x" -> d\theta/sp
-sig = prob_pt/npred/sp/2./twopi
-b   = np.ones(npred)/npred
-plt.plot(drad*180./pi,np.log(sig),'.')
-plt.plot(drad*180./pi,np.log(b),'g.')
-#plt.hist(drad*180./pi,bins=100,weights=np.log(sig))
-#plt.hist(drad*180./pi,bins=100,weights=np.log(b),alpha=.3)
-plt.show()
-
-
-x=np.arange(0.30,1.00,0.01)
-# diagnostic plot - 
-# log(mu) for signal as a function of fraction
-#plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(sig*f)),x)),'r')
-# log(mu) for background as a function of 1-fraction
-#plt.plot(x,np.asarray(map(lambda f: np.sum(np.log(b*(1.-f))),x)),'g')
-
-# calculate the likelihood - vary the only free parameter - fraction of background
-# mu = signal * f + (1-f)*background
-# 
-
-def neglikelihood(x):
-    x=max(1e-30,min(1.-1e-8,x))
-    res = -1. * np.sum(np.log(sig*x + b*(1.-x)))
+#    sig = prob_pt/npred/sp/2./twopi
+#    b   = np.ones(npred)/npred
+    b   =  np.ones(npred) / sa
+    sig =  prob_pt  / sp / sp
+#    f=max(1e-30,min(1.-1e-8,f))
+    res =  -np.sum(np.log(sig*f + b*(1.-f)))
     print x,res
     return(res)
 
 
-likeli  = lambda f: -1.*np.sum( np.log(sig*f + b*(1.-f)))
-likeli0 = np.asarray(map(lambda f: np.sum( np.log(sig*f + b*(1.-f)) ),x))
-print opt.minimize(neglikelihood,0.80,method='Nelder-Mead',options={'disp':True})
-print neglikelihood(0.83)
-print likeli(0.83)
-# maximize likelihood
-
-plt.plot(x,likeli0)
+xval=np.arange(0.1,0.999,0.001)
+plt.plot(xval,np.asarray(map(lambda fr: calc_likeli([RAc,DECc,fr]),xval)))
 plt.show()
+#print opt.minimize(calc_likeli,[RAc,DECc],method='Nelder-Mead',options={'disp':True})
+# maximize log likelihood -> minimize negative log likelihood
 
