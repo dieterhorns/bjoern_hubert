@@ -21,6 +21,7 @@ def f(N,sigt,sigc):					#norm
 	res=1./(1.+N*(sigt/sigc)**2.)
 	return res
 
+
 def p(tdev,sigc,gamc,sigt,gamt,N,E,c0,c1,beta):		#psf 	x=dRA, y=dDEC	umrechnung in rad noetig
 	res=f(N,sigt,sigc)*k(tdev,sigc,gamc,E,c0,c1,beta)+(1.-f(N,sigt,sigc))*k(tdev,sigt,gamt,E,c0,c1,beta)
 	return res
@@ -62,6 +63,34 @@ def dangle(ra1,ra2,dec1,dec2): # each given in degrees
     return(np.arccos(resu)) # in radiant
 
 
+def norma(maxangle,psf): # maximum angle in radiant, psf
+    nprime = np.zeros((8,23))
+    pind = np.int_(psf*3+1)
+    elo  = (psf_fits[pind].data.field('ENERG_LO'))
+    ehi  = (psf_fits[pind].data.field('ENERG_HI'))
+    emid = np.sqrt(elo*ehi)
+    drad=np.linspace(0.,maxangle,400)
+    for i in np.arange(0,8,1):
+     for j in np.arange(0,23,1):
+         tind = np.int_(i)
+         eind = np.int_(j)
+         ener = emid[0,j]
+         sigc=psf_fits[pind].data.field('SCORE')[0][tind][eind]
+         gamc=psf_fits[pind].data.field('GCORE')[0][tind][eind]
+         sigt=psf_fits[pind].data.field('STAIL')[0][tind][eind]
+         gamt=psf_fits[pind].data.field('GTAIL')[0][tind][eind]
+         N   =psf_fits[pind].data.field('NTAIL')[0][tind][eind]
+         c0  =psf_fits[pind+1].data.field('PSFSCALE')[0][0]
+         c1  =psf_fits[pind+1].data.field('PSFSCALE')[0][1]
+         beta=psf_fits[pind+1].data.field('PSFSCALE')[0][2]
+         prad=np.asarray(map(lambda x: twopi*x/np.power(Sp(ener,c0,c1,beta),2.)*p(x,sigc,gamc,sigt,gamt,N,ener,c0,c1,beta),drad))
+         nprime[i,j]=simps(prad,drad)
+#     print nprime[i,j]
+    return nprime
+
+
+
+
 # read in the data
 psf_fits=pyfits.open('./data/psf_P8R2_SOURCE_V6_PSF.fits')
 dat=pyfits.open('./data/source_psf2_3.fits')	
@@ -75,9 +104,9 @@ d2r=pi/180.
 r2d=180./pi
 
 # position of source
-RAc=166.114			#position des zentrums
-#DECc=38.2088
-DECc=38.1088
+# best fit
+RAc=166.118			#position des zentrums
+DECc=38.2063
 
 
 cosTlist=np.cos(np.array(dat[1].data.field('THETA   '))*pi/180)	#liste der photonen neigungswinkel zum detektor (fuer thetabin) in cos(theta)
@@ -87,26 +116,37 @@ Declist= np.array(dat[1].data.field('DEC'))
 evtype = np.array(dat[1].data.field('EVENT_TYPE')[:,26])
 
 drad = dangle(RAc*np.ones(Ralist.size),Ralist,DECc*np.ones(Declist.size),Declist)
-print drad
-
-
-# transformation:
-cRalist = (Ralist-RAc)/np.cos(DECc*pi/180.)
-cDeclist= Declist - DECc
 
 # maximum cutout angle
 maxa = 1.0
+
+# re-calculate the correct normalization
+# the tables are not properly normalized for all combinations of energy and ctheta
+# furthermore, the normalization has to be adjusted for the limited angle considered
+normali=np.zeros((4,8,23))
+print 'Re-calculating (truncated) normalization factors for maxa='+str(maxa)+' deg ROI'
+print 'PSFclass 0'
+normali[0]=norma(maxa*d2r,0)
+print 'PSFclass 1'
+normali[1]=norma(maxa*d2r,1)
+print 'PSFclass 2'
+normali[2]=norma(maxa*d2r,2)
+print 'PSFclass 3'
+normali[3]=norma(maxa*d2r,3)
+print 'done'
+
+
 
 # adding bootstrapped background
 bcosTlist = cosTlist[drad>(d2r*maxa)]
 bElist    = Elist[drad>(d2r*maxa)]
 bevtype   = evtype[drad>(d2r*maxa)]
-bRalist   = Ralist[drad>(d2r*maxa)]
-bDeclist  = Declist[drad>(d2r*maxa)]
+#bRalist   = Ralist[drad>(d2r*maxa)]
+#bDeclist  = Declist[drad>(d2r*maxa)]
 #shuffling separation angle and phase
 # uniform in costheta 
 bdradcos     = np.random.uniform(np.cos(maxa*d2r),1,bElist.size)
-bdrad        = np.arccos(bdradcos)
+bdrad        = np.arccos(bdradcos)*r2d
 bdradsin     = np.sqrt(1.-bdradcos*bdradcos)
 bphase    = np.random.rand(bElist.size)*twopi
 # transforming 
@@ -146,25 +186,18 @@ vp=tt[:,0,1]
 wp=tt[:,0,2]
 omwp = np.sqrt(1.-wp*wp)
 
-phip  = np.arctan2(vp/omwp,up/omwp)*r2d
-thp   = np.arcsin(wp)*r2d              # declination
+bRalist    = np.arctan2(vp/omwp,up/omwp)*r2d
+bDeclist   = np.arcsin(wp)*r2d              # declination
 
 #plt.plot(phip,thp,'g.')
 #plt.show()
-
-
-
-
-
-
-
 
 cosTlist = cosTlist[drad<(d2r*maxa)]
 Elist  = Elist[drad<(d2r*maxa)]
 Ralist = Ralist[drad<(d2r*maxa)]
 Declist = Declist[drad<(d2r*maxa)]
-drad = drad[drad<(d2r*maxa)]
 evtype = evtype[drad<(d2r*maxa)]
+drad = drad[drad<(d2r*maxa)]
 
 
 bck=0
@@ -175,16 +208,21 @@ Elist   = np.append(Elist,bElist[:bck])
 cosTlist= np.append(cosTlist,bcosTlist[:bck])
 drad    = np.append(drad,bdrad[:bck])
 
+# transformation:
+cRalist = (Ralist-RAc)/np.cos(DECc*pi/180.)
+cDeclist= Declist - DECc
+cRalist = cRalist[drad<(maxa*d2r)]
+cDeclist = cDeclist[drad<(maxa*d2r)]
+
 
 
 
 print str(drad.size)+' Photons within '+str(maxa)+' degrees'
 
-cRalist =cRalist[drad<(d2r*maxa)]
-cDeclist=cDeclist[drad<(d2r*maxa)]
 
 xlims=[min(cRalist),max(cRalist)]
 ylims=[min(cDeclist),max(cDeclist)]
+print xlims,ylims
 
 left,width=0.12,0.55
 bottom,height=0.12,0.55
@@ -305,6 +343,7 @@ N   =map(lambda pind,tind,eind: psf_fits[pind].data.field('NTAIL')[0][tind][eind
 c0  =map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][0], psfind)
 c1  =map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][1], psfind)
 beta=map(lambda pind: psf_fits[pind+1].data.field('PSFSCALE')[0][2], psfind)
+nnorm=map(lambda pind,tind,eind:normali[pind,tind,eind],psfclass,tbin,ebin)
 
 
 npred=drad.size
@@ -327,16 +366,18 @@ def calc_likeli(x):
 # normalize the sum  
 # normalized pdf to the full solid angle and differential in "x" -> d\theta/sp
     b   =  np.ones(npred) / sa
-    sig =  prob_pt  / sp / sp
+    sig =  prob_pt  / sp / sp / nnorm
+#    sig =  prob_pt  / sp / sp * drad/np.sin(drad)
     res =  -np.sum(np.log(sig*f + b*(1.-f)))
     print x,res
     return(res)
 
 def calc_likelif(x):
-    f=x[0]
-    b   =  np.ones(npred) / sa
-    sig =  prob_pt  / sp / sp
-    res =  -np.sum(np.log(sig*f + b*(1.-f)))
+    fs=x[0]
+    b   =  np.ones(npred) / sa 
+    sig =  prob_pt  / sp / sp  / nnorm
+#    sig =  prob_pt  / sp / sp * drad/np.sin(drad)
+    res =  -np.sum(np.log(sig*fs + b*(1.-fs)))
     print x,res
     return(res)
 
@@ -347,16 +388,22 @@ xval=np.arange(0.1,0.999,0.001)
 #plt.show()
 method='Nelder-Mead'
 #method='BFGS'
-result= opt.minimize(calc_likeli,[RAc,DECc],method=method,options={'disp':True})
-ra_src = result.x[0]
-dec_src = result.x[1]
+#result= opt.minimize(calc_likeli,[RAc,DECc],method=method,options={'disp':True})
+#ra_src = result.x[0]
+#dec_src = result.x[1]
+
+ra_src=166.118
+dec_src=38.2063
 drad = dangle(ra_src*np.ones(Ralist.size),Ralist,dec_src*np.ones(Declist.size),Declist)
 prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
                   drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
 result=opt.minimize(calc_likelif,[0.99], method=method, options={'disp':True})
+print result
 frac=result.x[0]
 
 
+
+'''
 ldec=[]
 for ddec in np.arange(dec_src-0.02,dec_src+0.021,0.001):
     drad = dangle(ra_src*np.ones(Ralist.size),Ralist,ddec*np.ones(Declist.size),Declist)
@@ -368,8 +415,37 @@ for ddec in np.arange(dec_src-0.02,dec_src+0.021,0.001):
 
 plt.plot(np.arange(dec_src-0.02,dec_src+0.021,0.001),ldec)
 plt.show()
+'''
 
 
+# plot radial profile
+hist,bins=np.histogram(drad*r2d,bins=100,range=(0,maxa))
+bcent = bins[:-1]+0.5*(bins[2]-bins[1])
+cosb=np.cos(bins*d2r)
+do= -twopi*np.diff(cosb)
+dndo=hist/do
+dndo_unc = np.sqrt(hist)/do
+#print bcent
+#print dndo
+#print dndo_unc
+ax=plt.subplot(111)
+ax.set_yscale("log")
+ax.errorbar(bcent,dndo,yerr=dndo_unc,fmt='o')
+sigfit=[]
+bkgfit=[]
+for bc in bcent:
+    prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
+                  bc*d2r*np.ones(npred),sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
+    sig =  prob_pt  / sp / sp  / nnorm
+    b   = np.ones(npred)/sa
+    sigfit.append(np.sum(sig))
+    bkgfit.append(np.sum(b))
 
-# maximize log likelihood -> minimize negative log likelihood
+sigfit=np.asarray(sigfit)*frac
+bkgfit=np.asarray(bkgfit)*(1.-frac)
 
+ax.plot(bcent,sigfit)
+ax.plot(bcent,bkgfit)
+ax.plot(bcent,sigfit+bkgfit)
+plt.show()
+np.savetxt('result'+str(maxa)+'.dat',zip(bcent,dndo,dndo_unc,sigfit,bkgfit))
