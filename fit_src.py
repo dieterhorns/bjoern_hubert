@@ -114,11 +114,20 @@ Elist=np.array(dat[1].data.field('ENERGY '))			#liste der photonenenergien in Me
 Ralist= np.array(dat[1].data.field('RA'))
 Declist= np.array(dat[1].data.field('DEC'))
 evtype = np.array(dat[1].data.field('EVENT_TYPE')[:,26])
+# do the cut..
+
+Emin = 18000.
+cosTlist=cosTlist[Elist>Emin]
+Ralist  = Ralist[Elist>Emin]
+Declist = Declist[Elist>Emin]
+evtype  = evtype[Elist>Emin]
+Elist   = Elist[Elist>Emin]
+
 
 drad = dangle(RAc*np.ones(Ralist.size),Ralist,DECc*np.ones(Declist.size),Declist)
 
 # maximum cutout angle
-maxa = 1.0
+maxa = 0.25
 
 # re-calculate the correct normalization
 # the tables are not properly normalized for all combinations of energy and ctheta
@@ -419,7 +428,7 @@ plt.show()
 
 
 # plot radial profile
-hist,bins=np.histogram(drad*r2d,bins=100,range=(0,maxa))
+hist,bins=np.histogram(drad*r2d,bins=25,range=(0,maxa))
 bcent = bins[:-1]+0.5*(bins[2]-bins[1])
 cosb=np.cos(bins*d2r)
 do= -twopi*np.diff(cosb)
@@ -437,9 +446,11 @@ for bc in bcent:
     prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
                   bc*d2r*np.ones(npred),sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
     sig =  prob_pt  / sp / sp  / nnorm
-    b   = np.ones(npred)/sa
+    b   =  np.ones(npred)/sa
     sigfit.append(np.sum(sig))
     bkgfit.append(np.sum(b))
+
+np.savetxt('result'+str(maxa)+'.dat',zip(bcent,dndo,dndo_unc,sigfit,bkgfit),header='# fac = '+ str(frac))
 
 sigfit=np.asarray(sigfit)*frac
 bkgfit=np.asarray(bkgfit)*(1.-frac)
@@ -448,4 +459,3 @@ ax.plot(bcent,sigfit)
 ax.plot(bcent,bkgfit)
 ax.plot(bcent,sigfit+bkgfit)
 plt.show()
-np.savetxt('result'+str(maxa)+'.dat',zip(bcent,dndo,dndo_unc,sigfit,bkgfit))
