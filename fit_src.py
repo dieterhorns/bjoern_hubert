@@ -128,6 +128,8 @@ drad = dangle(RAc*np.ones(Ralist.size),Ralist,DECc*np.ones(Declist.size),Declist
 
 # maximum cutout angle
 maxa = 0.25
+# number of radial bins
+nbin = 50
 
 # re-calculate the correct normalization
 # the tables are not properly normalized for all combinations of energy and ctheta
@@ -392,9 +394,12 @@ def calc_likelif(x):
 
 
 
-xval=np.arange(0.1,0.999,0.001)
+# for calculating the source position 
+# fixing the  ratios
+#xval=np.arange(0.1,0.999,0.001)
 #plt.plot(xval,np.asarray(map(lambda fr: calc_likeli([RAc,DECc,fr]),xval)))
 #plt.show()
+# fitting the best-fit source position
 method='Nelder-Mead'
 #method='BFGS'
 #result= opt.minimize(calc_likeli,[RAc,DECc],method=method,options={'disp':True})
@@ -403,10 +408,13 @@ method='Nelder-Mead'
 
 ra_src=166.118
 dec_src=38.2063
+# re-calculate the angular separation for the new source position
 drad = dangle(ra_src*np.ones(Ralist.size),Ralist,dec_src*np.ones(Declist.size),Declist)
+# calculate the corresponding probabilities/psf
 prob_pt = np.asarray(map(lambda dist,sc,gc,st,gt,no,c_0,c_1,b,ener: p(dist,sc,gc,st,gt,no,ener,c_0,c_1,b),
                   drad,sigc,gamc,sigt,gamt,N,c0,c1,beta,Elist))
-result=opt.minimize(calc_likelif,[0.99], method=method, options={'disp':True})
+# fit the ratio 
+result=opt.minimize(calc_likelif,[0.95], method=method, options={'disp':True})
 print result
 frac=result.x[0]
 
@@ -428,7 +436,7 @@ plt.show()
 
 
 # plot radial profile
-hist,bins=np.histogram(drad*r2d,bins=25,range=(0,maxa))
+hist,bins=np.histogram(drad*r2d,bins=nbins,range=(0,maxa))
 bcent = bins[:-1]+0.5*(bins[2]-bins[1])
 cosb=np.cos(bins*d2r)
 do= -twopi*np.diff(cosb)
@@ -450,7 +458,7 @@ for bc in bcent:
     sigfit.append(np.sum(sig))
     bkgfit.append(np.sum(b))
 
-np.savetxt('result'+str(maxa)+'.dat',zip(bcent,dndo,dndo_unc,sigfit,bkgfit),header='# fac = '+ str(frac))
+np.savetxt('result'+str(maxa)+'_'+str(nbins)+'.dat',zip(bcent,dndo,dndo_unc,sigfit,bkgfit,hist,do),header='# fac = '+ str(frac))
 
 sigfit=np.asarray(sigfit)*frac
 bkgfit=np.asarray(bkgfit)*(1.-frac)
